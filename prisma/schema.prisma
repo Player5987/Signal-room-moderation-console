@@ -1,0 +1,78 @@
+// Prisma schema — defines your database tables as type-safe models.
+// Dev uses SQLite (zero setup). For production, change provider to "postgresql"
+// and point DATABASE_URL at a Postgres instance (Neon, Supabase, etc.).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A moderation rule, editable at runtime (Stage 3). The classifier builds its
+// prompt from the active policies, so adding one here changes behavior with no
+// code change or retraining.
+model Policy {
+  id          String   @id @default(cuid())
+  key         String   @unique // the category id, e.g. "gambling"
+  label       String
+  description String // the plain-English rule the model reads
+  active      Boolean  @default(true)
+  builtin     Boolean  @default(false) // seeded defaults vs user-added
+  createdAt   DateTime @default(now())
+}
+
+// A person who submits or reviews content.
+model User {
+  id        String         @id @default(cuid())
+  email     String         @unique
+  name      String
+  role      String         @default("reviewer") // "reviewer" | "admin"
+  createdAt DateTime       @default(now())
+  reviews   ReviewAction[]
+}
+
+// A single piece of content submitted for moderation.
+model ContentItem {
+  id         String            @id @default(cuid())
+  text       String
+  imageUrl   String? // optional — used in Stage 2 (image moderation)
+  source     String            @default("api") // where it came from
+  status     String            @default("pending") // pending | processing | reviewed
+  createdAt  DateTime          @default(now())
+  result     ModerationResult?
+  reviews    ReviewAction[]
+}
+
+// The model's automated verdict for a ContentItem (one-to-one).
+model ModerationResult {
+  id            String      @id @default(cuid())
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  contentItemId String      @unique
+  // The top category the model flagged, e.g. "harassment", "spam", "clean".
+  category      String
+  // 0.0–1.0 confidence the model assigned.
+  confidence    Float
+  // Full per-category scores, stored as a JSON string (SQLite has no JSON type).
+  scores        String
+  // Short model-written justification.
+  rationale     String
+  // Which engine produced this: "llm" or "mock".
+  engine        String      @default("mock")
+  createdAt     DateTime    @default(now())
+}
+
+// A human decision on a ContentItem — the human-in-the-loop audit trail.
+model ReviewAction {
+  id            String      @id @default(cuid())
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  contentItemId String
+  reviewer      User        @relation(fields: [reviewerId], references: [id])
+  reviewerId    String
+  // "approve" = allow content, "remove" = take it down, "override" = disagree with model.
+  decision      String
+  note          String?
+  createdAt     DateTime    @default(now())
+}

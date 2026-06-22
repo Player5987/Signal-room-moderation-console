@@ -1,0 +1,111 @@
+{
+  "total": 24,
+  "accuracy": 0.9583333333333334,
+  "macroPrecision": 0.9791666666666666,
+  "macroRecall": 0.9583333333333334,
+  "macroF1": 0.9650793650793652,
+  "perCategory": [
+    {
+      "category": "harassment",
+      "support": 4,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    {
+      "category": "spam",
+      "support": 4,
+      "precision": 1,
+      "recall": 0.75,
+      "f1": 0.8571428571428571
+    },
+    {
+      "category": "scam",
+      "support": 4,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    {
+      "category": "sexual",
+      "support": 1,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    {
+      "category": "ip_violation",
+      "support": 4,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    {
+      "category": "clean",
+      "support": 7,
+      "precision": 0.875,
+      "recall": 1,
+      "f1": 0.9333333333333333
+    }
+  ],
+  "confusion": {
+    "harassment": {
+      "harassment": 4,
+      "spam": 0,
+      "scam": 0,
+      "sexual": 0,
+      "ip_violation": 0,
+      "clean": 0
+    },
+    "spam": {
+      "harassment": 0,
+      "spam": 3,
+      "scam": 0,
+      "sexual": 0,
+      "ip_violation": 0,
+      "clean": 1
+    },
+    "scam": {
+      "harassment": 0,
+      "spam": 0,
+      "scam": 4,
+      "sexual": 0,
+      "ip_violation": 0,
+      "clean": 0
+    },
+    "sexual": {
+      "harassment": 0,
+      "spam": 0,
+      "scam": 0,
+      "sexual": 1,
+      "ip_violation": 0,
+      "clean": 0
+    },
+    "ip_violation": {
+      "harassment": 0,
+      "spam": 0,
+      "scam": 0,
+      "sexual": 0,
+      "ip_violation": 4,
+      "clean": 0
+    },
+    "clean": {
+      "harassment": 0,
+      "spam": 0,
+      "scam": 0,
+      "sexual": 0,
+      "ip_violation": 0,
+      "clean": 7
+    }
+  },
+  "labels": [
+    "harassment",
+    "spam",
+    "scam",
+    "sexual",
+    "ip_violation",
+    "clean"
+  ],
+  "engine": "mock",
+  "ranAt": "2026-06-22T20:00:27.804Z"
+}
