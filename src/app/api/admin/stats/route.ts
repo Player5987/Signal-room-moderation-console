@@ -6,6 +6,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { CLEAN } from "@/lib/policies";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const [total, items, reviews, activePolicies, totalPolicies] = await Promise.all([
