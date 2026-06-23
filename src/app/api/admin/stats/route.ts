@@ -4,11 +4,17 @@
 import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CLEAN } from "@/lib/policies";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const session = await auth();
+  if ((session?.user as { role?: string })?.role !== "admin") {
+    return NextResponse.json({ error: "Admin only." }, { status: 403 });
+  }
   const [total, items, reviews, activePolicies, totalPolicies] = await Promise.all([
     prisma.contentItem.count(),
     prisma.contentItem.findMany({ include: { result: true }, orderBy: { createdAt: "desc" }, take: 500 }),

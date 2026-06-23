@@ -1,6 +1,4 @@
-// Prisma schema — defines your database tables as type-safe models.
-// Dev uses SQLite (zero setup). For production, change provider to "postgresql"
-// and point DATABASE_URL at a Postgres instance (Neon, Supabase, etc.).
+// Prisma schema. Dev uses SQLite; for production switch provider to "postgresql".
 
 generator client {
   provider = "prisma-client-js"
@@ -11,67 +9,103 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// A moderation rule, editable at runtime (Stage 3). The classifier builds its
-// prompt from the active policies, so adding one here changes behavior with no
-// code change or retraining.
+// ---------- Auth.js (NextAuth) models ----------
+// Standard tables the Prisma adapter expects, plus a `role` on User.
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  role          String         @default("user") // "user" | "admin"
+  createdAt     DateTime       @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  contentItems  ContentItem[]
+  reviews       ReviewAction[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Moderation domain ----------
+
 model Policy {
   id          String   @id @default(cuid())
-  key         String   @unique // the category id, e.g. "gambling"
+  key         String   @unique
   label       String
-  description String // the plain-English rule the model reads
+  description String
   active      Boolean  @default(true)
-  builtin     Boolean  @default(false) // seeded defaults vs user-added
+  builtin     Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
 
-// A person who submits or reviews content.
-model User {
-  id        String         @id @default(cuid())
-  email     String         @unique
-  name      String
-  role      String         @default("reviewer") // "reviewer" | "admin"
-  createdAt DateTime       @default(now())
+// A single piece of content submitted for moderation — now owned by a user.
+model ContentItem {
+  id        String            @id @default(cuid())
+  text      String
+  imageUrl  String?
+  source    String            @default("web")
+  status    String            @default("pending")
+  createdAt DateTime          @default(now())
+  // Owner. Nullable so seeded/system content can exist without a user.
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  result    ModerationResult?
   reviews   ReviewAction[]
 }
 
-// A single piece of content submitted for moderation.
-model ContentItem {
-  id         String            @id @default(cuid())
-  text       String
-  imageUrl   String? // optional — used in Stage 2 (image moderation)
-  source     String            @default("api") // where it came from
-  status     String            @default("pending") // pending | processing | reviewed
-  createdAt  DateTime          @default(now())
-  result     ModerationResult?
-  reviews    ReviewAction[]
-}
-
-// The model's automated verdict for a ContentItem (one-to-one).
 model ModerationResult {
   id            String      @id @default(cuid())
   contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
   contentItemId String      @unique
-  // The top category the model flagged, e.g. "harassment", "spam", "clean".
   category      String
-  // 0.0–1.0 confidence the model assigned.
   confidence    Float
-  // Full per-category scores, stored as a JSON string (SQLite has no JSON type).
   scores        String
-  // Short model-written justification.
   rationale     String
-  // Which engine produced this: "llm" or "mock".
+  language      String? // detected language of the content (Stage 5: multilingual)
   engine        String      @default("mock")
   createdAt     DateTime    @default(now())
 }
 
-// A human decision on a ContentItem — the human-in-the-loop audit trail.
 model ReviewAction {
   id            String      @id @default(cuid())
   contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
   contentItemId String
   reviewer      User        @relation(fields: [reviewerId], references: [id])
   reviewerId    String
-  // "approve" = allow content, "remove" = take it down, "override" = disagree with model.
   decision      String
   note          String?
   createdAt     DateTime    @default(now())

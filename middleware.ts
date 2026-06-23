@@ -1,29 +1,14 @@
-// Gate admin-only areas. Pages redirect to /login; admin APIs return 401.
+// Auth middleware. Uses the edge-safe config (JWT only, no Prisma) to gate routes
+// via the `authorized` callback in auth.config.ts.
 
-import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_COOKIE, expectedToken } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
 
-const PROTECTED = ["/eval", "/policies", "/admin"];
+export const { auth: middleware } = NextAuth(authConfig);
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  const isApi = pathname.startsWith("/api/admin");
-  const needsAuth = isApi || PROTECTED.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  if (!needsAuth) return NextResponse.next();
-
-  const token = req.cookies.get(ADMIN_COOKIE)?.value;
-  const ok = token && token === (await expectedToken());
-  if (ok) return NextResponse.next();
-
-  if (isApi) {
-    return NextResponse.json({ error: "Admin authentication required." }, { status: 401 });
-  }
-  const url = req.nextUrl.clone();
-  url.pathname = "/login";
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
-}
+export default middleware;
 
 export const config = {
-  matcher: ["/eval/:path*", "/policies/:path*", "/admin/:path*", "/api/admin/:path*"],
+  // Run on everything except auth endpoints, Next internals, and static files.
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
 };

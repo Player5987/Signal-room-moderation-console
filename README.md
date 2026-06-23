@@ -154,3 +154,32 @@ Notes: the Python image service isn't part of the Vercel deploy (deploy it
 separately on Render/Railway and set `IMAGE_SERVICE_URL`, or leave image
 moderation off). The committed `eval/results.json` is served read-only in
 production; re-run `npm run eval` locally to refresh it.
+
+## Stage 5 — Google sign-in, per-user history, multilingual
+
+The app is now multi-tenant. Sign-in is **Google OAuth** (Auth.js), the password
+gate is gone, and every submission is owned by the signed-in user.
+
+- **Normal users** see only their own submissions ("My history").
+- **Admins** (emails listed in `ADMIN_EMAILS`) see everyone's queries plus the
+  Dashboard, Evaluation, and Policies, and are the ones who approve/remove items.
+- The classifier is **language-agnostic**: it detects violations by meaning in any
+  language (with the real LLM) and reports the detected language. The mock engine
+  remains English-only.
+
+### Google OAuth setup (required for sign-in)
+
+1. Go to Google Cloud Console -> APIs & Services -> Credentials.
+2. Configure the OAuth consent screen (External; add your email as a test user).
+3. Create an **OAuth client ID** -> Web application. Add Authorized redirect URIs:
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://YOUR-APP.vercel.app/api/auth/callback/google`
+4. Copy the Client ID and Client Secret into `.env` as `AUTH_GOOGLE_ID` /
+   `AUTH_GOOGLE_SECRET`.
+5. Generate `AUTH_SECRET` with `npx auth secret`. List admin emails in `ADMIN_EMAILS`.
+
+### Env vars (local `.env` and Vercel)
+
+`DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
+`ADMIN_EMAILS`, and optionally `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`.
+After deploying, add the Vercel callback URL to the Google client (step 3).

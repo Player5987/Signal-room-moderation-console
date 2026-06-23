@@ -3,9 +3,18 @@
 //                              are blocked from deletion to keep the demo sane)
 
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
+async function requireAdmin() {
+  const session = await auth();
+  return (session?.user as { role?: string })?.role === "admin";
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: "Admin only." }, { status: 403 });
   let body: { active?: boolean; label?: string; description?: string };
   try {
     body = await req.json();
@@ -27,6 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: "Admin only." }, { status: 403 });
   const policy = await prisma.policy.findUnique({ where: { id: params.id } });
   if (!policy) return NextResponse.json({ error: "Policy not found." }, { status: 404 });
   if (policy.builtin) {

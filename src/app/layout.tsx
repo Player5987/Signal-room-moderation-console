@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { auth } from "@/auth";
 import Nav from "@/components/Nav";
-import { ADMIN_COOKIE, expectedToken } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Signal Room — Moderation Console",
-  description: "LLM-powered content moderation with human review, evaluation, and live policies.",
+  description: "Multi-tenant, multilingual LLM content moderation with per-user history and admin review.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const token = cookies().get(ADMIN_COOKIE)?.value;
-  const isAdmin = !!token && token === (await expectedToken());
+  const session = await auth();
+  const user = session?.user
+    ? {
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image,
+        role: (session.user as { role?: string }).role,
+      }
+    : null;
 
   return (
     <html lang="en">
@@ -26,10 +32,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <div className="ambient" />
         <div className="grid-overlay" />
-        <Nav isAdmin={isAdmin} />
-        <main style={{ maxWidth: 1080, margin: "0 auto", padding: "2rem 1.4rem 4rem" }}>
-          {children}
-        </main>
+        <Nav user={user} />
+        <main style={{ maxWidth: 1080, margin: "0 auto", padding: "2rem 1.4rem 4rem" }}>{children}</main>
       </body>
     </html>
   );

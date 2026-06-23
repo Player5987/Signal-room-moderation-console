@@ -7,6 +7,7 @@ interface Verdict {
   confidence: number;
   scores: Record<string, number>;
   rationale: string;
+  language?: string;
   engine: "llm" | "mock" | "vision-llm";
 }
 
@@ -96,6 +97,7 @@ export default function SubmitPage() {
             </span>
             <span className="mono" style={{ fontSize: ".82rem", color: "var(--muted)" }}>
               {(verdict.confidence * 100).toFixed(0)}% confidence · {verdict.engine} engine
+              {verdict.language && verdict.language !== "unknown" ? ` · ${verdict.language}` : ""}
             </span>
           </div>
           <p style={{ marginTop: ".7rem", fontSize: ".95rem" }}>{verdict.rationale}</p>

@@ -1,11 +1,9 @@
-// The classifier. In Stage 3 it takes the policy set as an ARGUMENT instead of
-// reading a fixed list, so the rules can change at runtime. The prompt is built
-// fresh from whatever policies are passed in.
+// The classifier. Takes the policy set as an argument (set at runtime), builds
+// the prompt from it, and classifies content in ANY language.
 //
 // Two engines, same output shape:
-//   1. "llm"  — calls OpenAI, forcing JSON output, prompt built from the policies.
-//   2. "mock" — keyword fallback (only knows the built-in categories; brand-new
-//               policies only really work with the real LLM, which reads them).
+//   1. "llm"  — calls an OpenAI-compatible API, JSON mode, language-agnostic.
+//   2. "mock" — keyword fallback (English-only; real multilingual needs the LLM).
 
 import OpenAI from "openai";
 import { PolicySpec, DEFAULT_POLICIES, CLEAN, categoryIds } from "./policies";
@@ -15,15 +13,18 @@ export interface ModerationVerdict {
   confidence: number;
   scores: Record<string, number>;
   rationale: string;
+  language: string; // detected language, e.g. "English", "Hindi", "Spanish"
   engine: "llm" | "mock" | "vision-llm";
 }
 
-// ---------- Build the prompt from a policy set ----------
-
 function buildSystemPrompt(policies: PolicySpec[]): string {
   const ids = categoryIds(policies);
-  return `You are a content moderation engine.
-Classify the user's content against these policies:
+  return `You are a multilingual content moderation engine.
+The content may be written in ANY language (English, Hindi, Spanish, Arabic, French, etc.),
+including transliterated or mixed-language text. Detect violations based on MEANING, not keywords,
+and classify identically regardless of the language used.
+
+Classify the content against these policies:
 ${policies.map((p) => `- ${p.key}: ${p.description}`).join("\n")}
 
 Respond with ONLY a JSON object, no markdown, in exactly this shape:
@@ -31,7 +32,8 @@ Respond with ONLY a JSON object, no markdown, in exactly this shape:
   "category": "<one of: ${ids.join(", ")}>",
   "confidence": <number 0..1>,
   "scores": { ${ids.map((c) => `"${c}": <0..1>`).join(", ")} },
-  "rationale": "<one short sentence>"
+  "language": "<the language the content is written in>",
+  "rationale": "<one short sentence, in English>"
 }
 Use "${CLEAN}" when no policy is violated.`;
 }
@@ -39,8 +41,6 @@ Use "${CLEAN}" when no policy is violated.`;
 // ---------- Engine 1: the real LLM ----------
 
 async function classifyWithLLM(text: string, policies: PolicySpec[]): Promise<ModerationVerdict> {
-  // baseURL + model come from env, so you can point this at OpenAI (default),
-  // Gemini's OpenAI-compatible endpoint, or any compatible provider.
   const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: process.env.OPENAI_BASE_URL || undefined,
@@ -48,7 +48,7 @@ async function classifyWithLLM(text: string, policies: PolicySpec[]): Promise<Mo
   const completion = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     temperature: 0,
-    max_tokens: 1024, // the verdict JSON is tiny; cap output so free tiers accept it
+    max_tokens: 1024,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildSystemPrompt(policies) },
@@ -63,11 +63,12 @@ async function classifyWithLLM(text: string, policies: PolicySpec[]): Promise<Mo
     confidence: clamp(parsed.confidence ?? 0),
     scores: normalizeScores(parsed.scores, policies),
     rationale: parsed.rationale ?? "No rationale provided.",
+    language: typeof parsed.language === "string" ? parsed.language : "unknown",
     engine: "llm",
   };
 }
 
-// ---------- Engine 2: the mock fallback ----------
+// ---------- Engine 2: the mock fallback (English keywords only) ----------
 
 const KEYWORDS: Record<string, string[]> = {
   harassment: ["idiot", "kill you", "hate you", "loser", "shut up", "worthless"],
@@ -84,7 +85,7 @@ function classifyWithMock(text: string, policies: PolicySpec[]): ModerationVerdi
   for (const id of ids) scores[id] = 0;
 
   for (const p of policies) {
-    const words = KEYWORDS[p.key] ?? []; // unknown (user-added) policies have no keywords
+    const words = KEYWORDS[p.key] ?? [];
     const hits = words.filter((w) => lower.includes(w)).length;
     if (hits > 0) scores[p.key] = Math.min(0.6 + hits * 0.2, 0.99);
   }
@@ -99,13 +100,14 @@ function classifyWithMock(text: string, policies: PolicySpec[]): ModerationVerdi
   }
   if (topScore === 0) {
     scores[CLEAN] = 0.95;
-    return { category: CLEAN, confidence: 0.95, scores, rationale: "No flagged keywords detected.", engine: "mock" };
+    return { category: CLEAN, confidence: 0.95, scores, rationale: "No flagged keywords detected.", language: "unknown", engine: "mock" };
   }
   return {
     category: top,
     confidence: topScore,
     scores,
-    rationale: `Matched ${top} keywords (mock engine — add OPENAI_API_KEY for the real model).`,
+    rationale: `Matched ${top} keywords (mock engine — add an API key for the real multilingual model).`,
+    language: "unknown",
     engine: "mock",
   };
 }
