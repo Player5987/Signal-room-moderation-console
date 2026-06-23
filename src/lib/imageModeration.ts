@@ -25,6 +25,7 @@ export async function moderateImage(
       confidence: v.confidence,
       scores: v.scores,
       rationale: v.rationale,
+        language: v.language ?? "unknown",
       engine: v.engine, // "vision-llm" or "mock"
     };
   } catch (err) {
